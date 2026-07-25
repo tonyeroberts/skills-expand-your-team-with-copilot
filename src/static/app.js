@@ -40,6 +40,9 @@ document.addEventListener("DOMContentLoaded", () => {
   let searchQuery = "";
   let currentDay = "";
   let currentTimeRange = "";
+  const sharedActivityName =
+    new URLSearchParams(window.location.search).get("activity") || "";
+  let hasFocusedSharedActivity = false;
 
   // Authentication state
   let currentUser = null;
@@ -304,6 +307,161 @@ document.addEventListener("DOMContentLoaded", () => {
     return details.schedule;
   }
 
+  function createActivityShareUrl(activityName) {
+    const shareUrl = new URL("/static/index.html", window.location.origin);
+    shareUrl.searchParams.set("activity", activityName);
+    return shareUrl.toString();
+  }
+
+  function buildShareContent(activityName, details) {
+    return {
+      title: `${activityName} at Mergington High School`,
+      text: `Check out ${activityName} at Mergington High School. ${formatSchedule(
+        details
+      )}.`,
+      url: createActivityShareUrl(activityName),
+    };
+  }
+
+  function getShareButtonsHtml(activityName) {
+    const encodedActivityName = encodeURIComponent(activityName);
+    const shareButtons = [];
+
+    if (navigator.share) {
+      shareButtons.push({
+        platform: "native",
+        icon: "📤",
+        label: "Share",
+      });
+    }
+
+    shareButtons.push(
+      {
+        platform: "facebook",
+        icon: "f",
+        label: "Facebook",
+      },
+      {
+        platform: "whatsapp",
+        icon: "💬",
+        label: "WhatsApp",
+      },
+      {
+        platform: "email",
+        icon: "✉️",
+        label: "Email",
+      },
+      {
+        platform: "copy",
+        icon: "🔗",
+        label: "Copy Link",
+      }
+    );
+
+    return `
+      <div class="share-buttons" aria-label="Share ${activityName}">
+        ${shareButtons
+          .map(
+            (button) => `
+              <button
+                type="button"
+                class="share-button"
+                data-platform="${button.platform}"
+                data-activity="${encodedActivityName}"
+              >
+                <span class="share-button-icon" aria-hidden="true">${button.icon}</span>
+                <span>${button.label}</span>
+              </button>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+
+  async function copyShareLink(url) {
+    try {
+      await navigator.clipboard.writeText(url);
+      showMessage("Share link copied.", "success");
+    } catch (error) {
+      console.error("Error copying share link:", error);
+      showMessage("Could not copy the share link.", "error");
+    }
+  }
+
+  async function handleShare(event) {
+    const activityName = decodeURIComponent(
+      event.currentTarget.dataset.activity || ""
+    );
+    const details = allActivities[activityName];
+
+    if (!details) {
+      showMessage("This activity could not be shared right now.", "error");
+      return;
+    }
+
+    const { title, text, url } = buildShareContent(activityName, details);
+    const platform = event.currentTarget.dataset.platform;
+    let shareTarget = "";
+
+    switch (platform) {
+      case "native":
+        try {
+          await navigator.share({ title, text, url });
+        } catch (error) {
+          if (error.name !== "AbortError") {
+            console.error("Error using native share:", error);
+            showMessage("Could not open the share menu.", "error");
+          }
+        }
+        return;
+      case "facebook":
+        shareTarget = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(
+          url
+        )}`;
+        break;
+      case "whatsapp":
+        shareTarget = `https://wa.me/?text=${encodeURIComponent(
+          `${text} ${url}`
+        )}`;
+        break;
+      case "email":
+        window.location.href = `mailto:?subject=${encodeURIComponent(
+          title
+        )}&body=${encodeURIComponent(`${text}\n\n${url}`)}`;
+        return;
+      case "copy":
+        await copyShareLink(url);
+        return;
+      default:
+        return;
+    }
+
+    window.open(shareTarget, "_blank", "noopener,noreferrer");
+  }
+
+  function focusSharedActivityCard() {
+    if (!sharedActivityName || hasFocusedSharedActivity) {
+      return;
+    }
+
+    const sharedCard = Array.from(
+      activitiesList.querySelectorAll(".activity-card")
+    ).find((card) => card.dataset.activityName === sharedActivityName);
+
+    if (!sharedCard) {
+      return;
+    }
+
+    hasFocusedSharedActivity = true;
+    sharedCard.classList.add("shared-activity-highlight");
+    sharedCard.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    setTimeout(() => {
+      sharedCard.classList.remove("shared-activity-highlight");
+    }, 2500);
+  }
+
   // Function to determine activity type (this would ideally come from backend)
   function getActivityType(activityName, description) {
     const name = activityName.toLowerCase();
@@ -470,12 +628,15 @@ document.addEventListener("DOMContentLoaded", () => {
     Object.entries(filteredActivities).forEach(([name, details]) => {
       renderActivityCard(name, details);
     });
+
+    focusSharedActivityCard();
   }
 
   // Function to render a single activity card
   function renderActivityCard(name, details) {
     const activityCard = document.createElement("div");
     activityCard.className = "activity-card";
+    activityCard.dataset.activityName = name;
 
     // Calculate spots and capacity
     const totalSpots = details.max_participants;
@@ -519,6 +680,8 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
 
+    const shareButtonsHtml = getShareButtonsHtml(name);
+
     activityCard.innerHTML = `
       ${tagHtml}
       <h4>${name}</h4>
@@ -553,6 +716,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </ul>
       </div>
       <div class="activity-card-actions">
+        ${shareButtonsHtml}
         ${
           currentUser
             ? `
@@ -575,6 +739,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const deleteButtons = activityCard.querySelectorAll(".delete-participant");
     deleteButtons.forEach((button) => {
       button.addEventListener("click", handleUnregister);
+    });
+
+    const shareButtons = activityCard.querySelectorAll(".share-button");
+    shareButtons.forEach((button) => {
+      button.addEventListener("click", handleShare);
     });
 
     // Add click handler for register button (only when authenticated)
