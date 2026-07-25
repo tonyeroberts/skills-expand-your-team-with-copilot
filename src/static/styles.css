@@ -1,5 +1,7 @@
 /* Color palette */
 :root {
+  color-scheme: light;
+
   /* Primary colors */
   --primary: #1a237e;
   --primary-light: #534bae;
@@ -32,11 +34,30 @@
   --info-light: #d1ecf1;
 }
 
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #121826;
+  --surface: #1b2435;
+  --text-primary: #e8edf7;
+  --text-secondary: #b8c2d8;
+  --border: #32415c;
+  --border-light: #253147;
+  --border-focus: #4b5e81;
+  --success-light: #16331b;
+  --warning-light: #3a2f12;
+  --error-light: #421c21;
+  --info-light: #163641;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
   font-family: Arial, sans-serif;
+}
+
+html {
+  background-color: var(--background);
 }
 
 body {
@@ -525,6 +546,8 @@ footer {
   flex: 1;
   min-width: 0; /* Add this to prevent input from overflowing */
   padding: 6px 10px;
+  background-color: var(--surface);
+  color: var(--text-primary);
   border: 1px solid var(--border);
   border-right: none;
   border-radius: 20px 0 0 20px;
@@ -655,6 +678,9 @@ footer {
   position: absolute;
   top: 10px;
   right: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 #user-status {
@@ -692,6 +718,10 @@ footer {
   font-size: 1rem;
 }
 
+#theme-toggle {
+  white-space: nowrap;
+}
+
 #logout-button {
   padding: 3px 10px;
   background-color: rgba(255, 255, 255, 0.2);
@@ -701,4 +731,13 @@ footer {
 
 #logout-button:hover {
   background-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 767px) {
+  #user-controls {
+    position: static;
+    margin-top: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
 }
